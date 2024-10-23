@@ -1,0 +1,55 @@
+<ot-sim>
+  <message-bus>
+    <pull-endpoint>tcp://127.0.0.1:1234</pull-endpoint>
+    <pub-endpoint>tcp://127.0.0.1:5678</pub-endpoint>
+  </message-bus>
+  <cpu>
+    <api-endpoint>0.0.0.0:9101</api-endpoint>
+    <module name="backplane">ot-sim-message-bus {{config_file}}</module>
+    <module name="modbus">ot-sim-modbus-module {{config_file}}</module>
+    <module name="turbine-anemometer">ot-sim-wind-turbine-anemometer-module {{config_file}}</module>
+    <module name="logic">ot-sim-logic-module {{config_file}}</module>
+  </cpu>
+  <modbus name="modbus-outstation" mode="server">
+    <endpoint>0.0.0.0:10502</endpoint>
+    <register type="input">
+      <address>30001</address>
+      <tag>yaw.current</tag>
+      <scaling>-2</scaling>
+    </register>
+    <register type="holding">
+      <address>40001</address>
+      <tag>yaw.setpoint</tag>
+      <scaling>-2</scaling>
+    </register>
+    <register type="input">
+      <address>30004</address>
+      <tag>dir.high</tag>
+      <scaling>-2</scaling>
+    </register>
+  </modbus>
+  <wind-turbine>
+    <anemometer>
+      <weather-data>
+        <column name="Wind Direction 58.2m">dir.high</column>
+      </weather-data>
+      <data-path>weather.csv</data-path>
+    </anemometer>
+  </wind-turbine>
+  <logic name="yaw-controller">
+    <period>1s</period>
+    <process-updates>true</process-updates>
+    <program><![CDATA[
+      yaw_setpoint = wind_dir > 180 ? wind_dir - 180 : wind_dir + 180
+      current_yaw = current_yaw == 0 ? yaw_setpoint : current_yaw
+      adjust = yaw_setpoint != current_yaw
+      dir = yaw_setpoint > current_yaw ? 1 : -1
+      current_yaw = adjust ? current_yaw + (dir * 0.1) : current_yaw
+    ]]></program>
+    <variables>
+      <current_yaw tag="yaw.current">0</current_yaw>
+      <!-- <yaw_setpoint tag="yaw.setpoint">0</yaw_setpoint> -->
+      <wind_dir tag="dir.high">0</wind_dir>
+    </variables>
+  </logic>
+</ot-sim>
