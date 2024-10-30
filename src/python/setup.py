@@ -18,6 +18,7 @@ SCRIPTS = [
     'ot-sim-rpi-gpio-module = otsim.rpi_gpio.rpi_gpio:main',
     'ot-sim-wind-turbine-anemometer-module = otsim.wind_turbine.anemometer.anemometer:main',
     'ot-sim-wind-turbine-power-output-module = otsim.wind_turbine.power_output.power_output:main',
+    'ot-sim-halucinator-module = otsim.halucinator.halucinator:main',
 ]
 
 if platform.machine() == 'x86_64':
