@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 
 from otsim.msgbus.envelope import Point
 from otsim.msgbus.pusher   import Pusher
+from otsim.msgbus.subscriber import Subscriber
 
 
 # physics environment simulation for thermostat
@@ -144,18 +145,25 @@ if __name__ == '__main__':
 
 
 class Halucinator:
-  def __init__(self: Halucinator, pull: str, el: ET.Element):
+  def __init__(self: Halucinator, pub: str, pull: str, el: ET.Element):
     self.name = el.get('name', default='ot-sim-halucinator')
 
     data_tag_el = el.find('tag')
 
     self.data_tag = data_tag_el.text
 
+    pub_endpoint  = el.findtext('pub-endpoint', default=pub)
     pull_endpoint = el.findtext('pull-endpoint', default=pull)
+
+    self.subscriber = Subscriber(pub_endpoint)
     self.pusher   = Pusher(pull_endpoint)
+
+    self.subscriber.add_update_handler(self.handle_msgbus_update)
 
 
   def start(self: Halucinator):
+    self.subscriber.start('RUNTIME')
+
     self.io_server = IOServer(5556, 5555)
     self.server = LocalServer(self.io_server)
     self.io_server.register_topic('Peripheral.UARTPublisher.write', uart_write_handler)
@@ -166,6 +174,7 @@ class Halucinator:
 
   def stop(self: Halucinator):
     self.io_server.shutdown()
+    self.subscriber.stop()
 
 
   def run(self: Halucinator):
@@ -186,6 +195,14 @@ class Halucinator:
       time.sleep(0.1)
 
 
+  def handle_msgbus_update(self: Halucinator, env: Envelope):
+    update = envelope.update_from_envelope(env)
+
+    if update:
+      for point in update['updates']:
+        tag = point['tag']
+
+
 def main():
   logging.basicConfig(level=logging.ERROR)
 
@@ -201,14 +218,16 @@ def main():
   mb = root.find('message-bus')
 
   if mb:
+    pub  = mb.findtext('pub-endpoint')
     pull = mb.findtext('pull-endpoint')
   else:
+    pub  = 'tcp://127.0.0.1:5678'
     pull = 'tcp://127.0.0.1:1234'
 
   modules: typing.List[Halucinator] = []
 
-  for wp in root.findall('./halucinator'):
-    module = Halucinator(pull, wp)
+  for el in root.findall('./halucinator'):
+    module = Halucinator(pub, pull, el)
     module.start()
 
     modules.append(module)
