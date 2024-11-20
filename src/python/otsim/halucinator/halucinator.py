@@ -10,138 +10,44 @@ from otsim.msgbus.pusher   import Pusher
 from otsim.msgbus.subscriber import Subscriber
 
 
-# physics environment simulation for thermostat
-
 import zmq
 from halucinator.external_devices.ioserver import IOServer
 from time import sleep
-import random
 
-def uart_write_handler(ioserver, msg):
-    txt = msg['chars'].decode('latin-1')
-    # ignore for now
-    # print(txt, end='', flush=True)
-
-HEATER_GPIO = '0x48000000_256'
-
-# units are in Fahrenheit
-class HeaterModel():
-    def __init__(self):
-        # same as the defines in Core/Src/main.c for the thermostat
-        self.RAW_TO_TEMP_A = 0.175
-        self.RAW_TO_TEMP_B = -22.2
-
-
-        # how quickly heat is lost to the ambient environment
-        self.heat_loss_rate = 0.015
-        # how quickly heat is gained with the heater
-        # this ratio is desired for similar behavior as the physical model
-        self.heat_gain_rate = self.heat_loss_rate * 100
-
-        self.ambient = 70
-        self.temp = 90
-
-    def update(self, dt, heater_output):
-        assert dt > 0.0
-        assert 0 <= heater_output and heater_output <= 1.0
-
-        new_temp = self.temp
-        new_temp += heater_output*dt * self.heat_gain_rate
-        new_temp += (self.ambient - self.temp)*dt * self.heat_loss_rate
-        self.temp = new_temp
-
-        return self.temp
-
-    def to_raw(self, temp):
-        return (temp - self.RAW_TO_TEMP_B)/self.RAW_TO_TEMP_A
-
-    def update_to_raw(self, dt, heater_output):
-        v = self.update(dt, heater_output)
-        # random perturbations to simulate noise
-        v += (1 - 2*random.random()) * 0.8
-        return self.to_raw(v)
 
 class LocalServer(object):
-    def __init__(self, ioserver):
+    def __init__(self, ioserver, pin_write_handler):
         self.ioserver = ioserver
         ioserver.register_topic('Peripheral.GPIO.write_pin', self.write_handler)
         ioserver.register_topic('Peripheral.GPIO.toggle_pin', self.write_handler)
         ioserver.register_topic('Peripheral.ExternalTimer.delay', self.delay)
-        ioserver.register_topic('Peripheral.ExternalTimer.start_timer', self.start_timer)
         ioserver.register_topic('Peripheral.ZmqPeripheral.hw_io', self.hw_io_handler)
         self.current_time = 0
-        self.timer_active = False
-
-        # internal model values
-        self.heater_model = HeaterModel()
-
-        # input state values (initial)
-        self.heater_gpio = True
-
-        # TODO: calculate tick times from based on guest options
-        self.timer_frequency = 76.5/1000.0
+        self.tick_delay = 500
+        self.pin_write_handler = pin_write_handler
 
     def write_handler(self, ioserver, msg):
-        if msg['id'] == HEATER_GPIO:
-            state = msg['value'] == 1
-            self.heater_gpio = state
-
-    def hw_io_handler(self, ioserver, msg):
-        # pwm is at address 0x40012c34
-        if msg['offset'] == 0x12c34:
-            state = msg['value']
-            self.heater_gpio = state
+        print('got msg', msg)
+        pin = msg['id']
+        value = msg['value']
+        self.pin_write_handler(pin, value)
 
     def delay(self, ioserver, msg):
+        print('guest requested delay', msg)
         delay = msg['value']
         self.current_time += delay
         # update time
         d = {'value': self.current_time}
         self.ioserver.send_msg('Peripheral.ExternalTimer.update_time', d)
-        self.update_model()
+
+    def hw_io_handler(self, ioserver, msg):
+        print('got hw io msg', msg, 'offset:', hex(msg['offset']))
 
     def tick(self):
-        if not self.timer_active:
-            return None
-
-        # wait until we have all inputs
-        if self.heater_gpio is None:
-            return None
-
-        # update model values
-        heater_proportion = self.heater_gpio/65535.0
-        dt = self.timer_frequency
-
-        raw = self.heater_model.update_to_raw(dt, heater_proportion)
-
-        print('heat:', int(self.heater_model.temp), 'raw:', raw, 'pwm output:', int(heater_proportion * 1000)/1000.0)
-        self.ioserver.send_msg('Peripheral.ADC.ext_adc_change', {'id': '0', 'value': int(raw)})
-
-        self.current_time += self.timer_frequency * 1000
-
-        # reset inputs before calling interrupt (which would get us the next values)
-        self.heater_gpio = None
-
-        self.ioserver.send_msg('Peripheral.ExternalTimer.tick_interrupt', {'value': int(self.current_time)})
-        return self.heater_model.temp
-
-    def start_timer(self, ioserver, msg):
-        print('starting timer')
-        self.timer_active = True
-
-def main():
-    try:
-        while True:
-            server.tick()
-    except KeyboardInterrupt:
-        pass
-    io_server.shutdown()
-    # io_server.join()
-
-
-if __name__ == '__main__':
-    main()
-
+        self.current_time += self.tick_delay
+        # update time
+        d = {'value': self.current_time}
+        self.ioserver.send_msg('Peripheral.ExternalTimer.update_time', d)
 
 
 class Halucinator:
@@ -160,13 +66,14 @@ class Halucinator:
 
     self.subscriber.add_update_handler(self.handle_msgbus_update)
 
+    self.ts = 0
+
 
   def start(self: Halucinator):
     self.subscriber.start('RUNTIME')
 
     self.io_server = IOServer(5556, 5555)
-    self.server = LocalServer(self.io_server)
-    self.io_server.register_topic('Peripheral.UARTPublisher.write', uart_write_handler)
+    self.server = LocalServer(self.io_server, self.pin_update)
     self.io_server.start()
 
     threading.Thread(target=self.run, daemon=True).start()
@@ -178,21 +85,18 @@ class Halucinator:
 
 
   def run(self: Halucinator):
-    ts   = 0
-    rows = None
-
     while True:
-      new_temp = self.server.tick()
+      self.server.tick()
+      sleep(self.server.tick_delay/1000)
 
-      if new_temp is not None:
-        value = new_temp
-        points: typing.List[Point] = [{'tag': self.data_tag, 'value': float(value), 'ts': ts}]
-
-        env = envelope.new_status_envelope(self.name, {'measurements': points})
-        self.pusher.push('RUNTIME', env)
-
-      ts += 1 # must be an integer
+      self.ts += 1 # must be an integer
       time.sleep(0.1)
+
+  def pin_update(self, pin, val):
+    tag = 'gpio_pin_' + str(pin)
+    points: typing.List[Point] = [{'tag': tag, 'value': val, 'ts': self.ts}]
+    env = envelope.new_status_envelope(self.name, {'measurements': points})
+    self.pusher.push('RUNTIME', env)
 
 
   def handle_msgbus_update(self: Halucinator, env: Envelope):
@@ -201,6 +105,11 @@ class Halucinator:
     if update:
       for point in update['updates']:
         tag = point['tag']
+        logging.error(f'got update with tag {tag}: {point}')
+        if 'gpio_pin_' in tag:
+          pin = int(tag.split('gpio_pin_')[1])
+          pin_set = point['value']
+          self.io_server.send_msg('Peripheral.GPIO.ext_pin_change', {'id': pin, 'value': pin_set})
 
 
 def main():

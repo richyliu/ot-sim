@@ -12,39 +12,28 @@
   </cpu>
   <modbus name="modbus-outstation" mode="server">
     <endpoint>0.0.0.0:10502</endpoint>
-    <register type="input">
-      <address>30001</address>
-      <tag>yaw.current</tag>
-      <scaling>-2</scaling>
-    </register>
-    <register type="holding">
-      <address>40001</address>
-      <tag>yaw.setpoint</tag>
-      <scaling>-2</scaling>
-    </register>
-    <register type="input">
-      <address>30004</address>
-      <tag>dir.high</tag>
-      <scaling>-2</scaling>
-    </register>
+    <!-- <register type="coil"> -->
+    <!--   <address>30001</address> -->
+    <!--   <tag>input1</tag> -->
+    <!-- </register> -->
+    <!-- <register type="coil"> -->
+    <!--   <address>30002</address> -->
+    <!--   <tag>output1</tag> -->
+    <!-- </register> -->
   </modbus>
   <halucinator>
-    <tag>dir.high</tag>
+    <tag>_unused</tag>
   </halucinator>
-  <logic name="yaw-controller">
+  <logic name="test1">
     <period>1s</period>
     <process-updates>true</process-updates>
     <program><![CDATA[
-      yaw_setpoint = wind_dir > 180 ? wind_dir - 180 : wind_dir + 180
-      current_yaw = current_yaw == 0 ? yaw_setpoint : current_yaw
-      adjust = yaw_setpoint != current_yaw
-      dir = yaw_setpoint > current_yaw ? 1 : -1
-      current_yaw = adjust ? current_yaw + (dir * 0.1) : current_yaw
+      output_as_bool = output1 > 0
+      input1 = !output_as_bool ? 1 : 0
     ]]></program>
     <variables>
-      <current_yaw tag="yaw.current">0</current_yaw>
-      <!-- <yaw_setpoint tag="yaw.setpoint">0</yaw_setpoint> -->
-      <wind_dir tag="dir.high">0</wind_dir>
+      <input1 tag="gpio_pin_90">0</input1>
+      <output1 tag="gpio_pin_36">0</output1>
     </variables>
   </logic>
 </ot-sim>
