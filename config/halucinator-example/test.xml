@@ -12,17 +12,13 @@
   </cpu>
   <modbus name="modbus-outstation" mode="server">
     <endpoint>0.0.0.0:10502</endpoint>
-    <!-- <register type="coil"> -->
-    <!--   <address>30001</address> -->
-    <!--   <tag>input1</tag> -->
-    <!-- </register> -->
-    <!-- <register type="coil"> -->
-    <!--   <address>30002</address> -->
-    <!--   <tag>output1</tag> -->
-    <!-- </register> -->
+    <register type="coil">
+      <address>30001</address>
+      <tag>output</tag>
+    </register>
   </modbus>
   <halucinator>
-    <tag>_unused</tag>
+    <gpio-msg-prefix>gpio_pin_</gpio-msg-prefix>
   </halucinator>
   <logic name="test1">
     <period>1s</period>
@@ -37,6 +33,7 @@
       <motor_set tag="gpio_pin_90">0</motor_set>
       <motor_reset tag="gpio_pin_93">0</motor_reset>
       <motor_status tag="gpio_pin_36">0</motor_status>
+      <output tag="output">0</output>
     </variables>
   </logic>
 </ot-sim>

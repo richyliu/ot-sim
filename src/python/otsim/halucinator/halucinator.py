@@ -1,3 +1,12 @@
+"""
+This module allows for interacting with GPIO pins in a firmware emulated with
+halucinator. Pin interactions are directly sent to the OT-Sim message bus for
+use with other modules.
+
+Required tags:
+- gpio-msg-prefix: prefix to add to gpio pins for message bus envelopes
+"""
+
 from __future__ import annotations
 
 import csv, logging, signal, sys, threading, time, typing
@@ -15,37 +24,22 @@ from halucinator.external_devices.ioserver import IOServer
 from time import sleep
 
 
-class LocalServer(object):
+class HalucinatorServer(object):
     def __init__(self, ioserver, pin_write_handler):
         self.ioserver = ioserver
         ioserver.register_topic('Peripheral.GPIO.write_pin', self.write_handler)
         ioserver.register_topic('Peripheral.GPIO.toggle_pin', self.write_handler)
-        ioserver.register_topic('Peripheral.ExternalTimer.delay', self.delay)
-        ioserver.register_topic('Peripheral.ZmqPeripheral.hw_io', self.hw_io_handler)
         self.current_time = 0
         self.tick_delay = 500
         self.pin_write_handler = pin_write_handler
 
     def write_handler(self, ioserver, msg):
-        print('got msg', msg)
         pin = msg['id']
         value = msg['value']
         self.pin_write_handler(pin, value)
 
-    def delay(self, ioserver, msg):
-        print('guest requested delay', msg)
-        delay = msg['value']
-        self.current_time += delay
-        # update time
-        d = {'value': self.current_time}
-        self.ioserver.send_msg('Peripheral.ExternalTimer.update_time', d)
-
-    def hw_io_handler(self, ioserver, msg):
-        print('got hw io msg', msg, 'offset:', hex(msg['offset']))
-
     def tick(self):
         self.current_time += self.tick_delay
-        # update time
         d = {'value': self.current_time}
         self.ioserver.send_msg('Peripheral.ExternalTimer.update_time', d)
 
@@ -54,9 +48,7 @@ class Halucinator:
   def __init__(self: Halucinator, pub: str, pull: str, el: ET.Element):
     self.name = el.get('name', default='ot-sim-halucinator')
 
-    data_tag_el = el.find('tag')
-
-    self.data_tag = data_tag_el.text
+    self.gpio_msg_prefix = el.find('gpio-msg-prefix').text
 
     pub_endpoint  = el.findtext('pub-endpoint', default=pub)
     pull_endpoint = el.findtext('pull-endpoint', default=pull)
@@ -73,7 +65,7 @@ class Halucinator:
     self.subscriber.start('RUNTIME')
 
     self.io_server = IOServer(5556, 5555)
-    self.server = LocalServer(self.io_server, self.pin_update)
+    self.server = HalucinatorServer(self.io_server, self.pin_update)
     self.io_server.start()
 
     threading.Thread(target=self.run, daemon=True).start()
@@ -93,7 +85,7 @@ class Halucinator:
       time.sleep(0.1)
 
   def pin_update(self, pin, val):
-    tag = 'gpio_pin_' + str(pin)
+    tag = self.gpio_msg_prefix + str(pin)
     points: typing.List[Point] = [{'tag': tag, 'value': val, 'ts': self.ts}]
     env = envelope.new_status_envelope(self.name, {'measurements': points})
     self.pusher.push('RUNTIME', env)
@@ -105,9 +97,8 @@ class Halucinator:
     if update:
       for point in update['updates']:
         tag = point['tag']
-        logging.error(f'got update with tag {tag}: {point}')
-        if 'gpio_pin_' in tag:
-          pin = int(tag.split('gpio_pin_')[1])
+        if self.gpio_msg_prefix in tag:
+          pin = int(tag.split(self.gpio_msg_prefix)[1])
           pin_set = point['value']
           self.io_server.send_msg('Peripheral.GPIO.ext_pin_change', {'id': pin, 'value': pin_set})
 
