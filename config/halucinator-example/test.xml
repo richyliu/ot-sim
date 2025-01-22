@@ -19,6 +19,8 @@
   </modbus>
   <halucinator>
     <gpio-msg-prefix>gpio_pin_</gpio-msg-prefix>
+    <zmq-rx>5556</zmq-rx>
+    <zmq-tx>5555</zmq-tx>
   </halucinator>
   <logic name="test1">
     <period>1s</period>

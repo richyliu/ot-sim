@@ -53,6 +53,9 @@ class Halucinator:
     pub_endpoint  = el.findtext('pub-endpoint', default=pub)
     pull_endpoint = el.findtext('pull-endpoint', default=pull)
 
+    self.zmq_rx = int(el.findtext('zmq-rx', default='5556'))
+    self.zmq_tx = int(el.findtext('zmq-tx', default='5555'))
+
     self.subscriber = Subscriber(pub_endpoint)
     self.pusher   = Pusher(pull_endpoint)
 
@@ -64,7 +67,7 @@ class Halucinator:
   def start(self: Halucinator):
     self.subscriber.start('RUNTIME')
 
-    self.io_server = IOServer(5556, 5555)
+    self.io_server = IOServer(self.zmq_rx, self.zmq_tx)
     self.server = HalucinatorServer(self.io_server, self.pin_update)
     self.io_server.start()
 
