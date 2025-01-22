@@ -17,6 +17,9 @@ FROM python:3.11-bookworm as pybuild
 
 ADD .git /usr/local/src/ot-sim/.git
 
+WORKDIR /usr/local/src
+RUN git clone https://github.com/sandialabs/halucinator && pip install -r halucinator/src/requirements.txt && pip install -e halucinator/src
+
 ADD src/python /usr/local/src/ot-sim/src/python
 RUN python3 -m pip install /usr/local/src/ot-sim/src/python
 
