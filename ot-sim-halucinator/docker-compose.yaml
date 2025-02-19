@@ -4,8 +4,10 @@ services:
   ot-sim:
     image: ot-sim
     command: ot-sim-cpu-module /root/local-ot-sim/config/halucinator-example/test.xml
+    ports:
+      - 8000:1880
     volumes:
-      - ${PWD}/..:/root/local-ot-sim:ro
+      - ${PWD}/..:/root/local-ot-sim:rw
       - halucinator-ipc-tmp:/tmp
 
   halucinator_openplc:

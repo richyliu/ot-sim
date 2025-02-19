@@ -9,7 +9,16 @@
     <module name="modbus">ot-sim-modbus-module {{config_file}}</module>
     <module name="halucinator">ot-sim-halucinator-module {{config_file}}</module>
     <module name="logic">ot-sim-logic-module {{config_file}}</module>
+    <module name="node-red">ot-sim-node-red-module {{config_file}}</module>
   </cpu>
+  <node-red>
+    <executable>node-red</executable>
+    <settings-path>/etc/node-red.js</settings-path>
+    <theme>dark</theme>
+    <!-- <flow-path>config/halucinator-example/node-red-hmi.json</flow-path> -->
+    <flow-path>/root/local-ot-sim/config/halucinator-example/node-red-hmi.json</flow-path>
+    <endpoint host="0.0.0.0" port="1880"></endpoint>
+  </node-red>
   <modbus name="modbus-outstation" mode="server">
     <endpoint>0.0.0.0:10502</endpoint>
     <register type="coil">
@@ -26,9 +35,9 @@
     <period>1s</period>
     <process-updates>true</process-updates>
     <program><![CDATA[
-      tick = (tick > 15) ? 0 : (tick + 1)
-      motor_set = tick > 0 && tick < 5
-      motor_reset = tick > 10 && tick < 15
+      //tick = (tick > 15) ? 0 : (tick + 1)
+      //motor_set = tick > 0 && tick < 5
+      //motor_reset = tick > 10 && tick < 15
       output = motor_status
     ]]></program>
     <variables>
