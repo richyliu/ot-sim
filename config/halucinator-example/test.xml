@@ -28,6 +28,11 @@
   </modbus>
   <halucinator>
     <gpio-msg-prefix>gpio_pin_</gpio-msg-prefix>
+    <pause-msg>hal_pause</pause-msg>
+    <resume-msg>hal_resume</resume-msg>
+    <halucinator-pause-msg>Peripheral.PausableIPythonShell.pause</halucinator-pause-msg>
+    <halucinator-resume-msg>Peripheral.PausableIPythonShell.resume</halucinator-resume-msg>
+    <raw-halucinator-msg-prefix>hal_raw_</raw-halucinator-msg-prefix>
     <zmq-rx>5556</zmq-rx>
     <zmq-tx>5555</zmq-tx>
   </halucinator>
@@ -35,9 +40,6 @@
     <period>1s</period>
     <process-updates>true</process-updates>
     <program><![CDATA[
-      //tick = (tick > 15) ? 0 : (tick + 1)
-      //motor_set = tick > 0 && tick < 5
-      //motor_reset = tick > 10 && tick < 15
       output = motor_status
     ]]></program>
     <variables>

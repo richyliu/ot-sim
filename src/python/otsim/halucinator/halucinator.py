@@ -21,7 +21,7 @@ from otsim.msgbus.subscriber import Subscriber
 
 import zmq
 from halucinator.external_devices.ioserver import IOServer
-from time import sleep
+import time
 
 
 class HalucinatorServer(object):
@@ -48,7 +48,12 @@ class Halucinator:
   def __init__(self: Halucinator, pub: str, pull: str, el: ET.Element):
     self.name = el.get('name', default='ot-sim-halucinator')
 
-    self.gpio_msg_prefix = el.find('gpio-msg-prefix').text
+    self.gpio_msg_prefix = el.findtext('gpio-msg-prefix', default='halucinator_gpio_')
+    self.pause_msg = el.findtext('pause-msg', default='halucinator_pause')
+    self.resume_msg = el.findtext('resume-msg', default='halucinator_resume')
+    self.halucinator_pause_msg = el.findtext('halucinator-pause-msg', default='Peripheral.PausableIPythonShell.pause')
+    self.halucinator_resume_msg = el.findtext('halucinator-resume-msg', default='Peripheral.PausableIPythonShell.resume')
+    self.raw_halucinator_msg_prefix = el.findtext('raw-halucinator-msg-prefix', default='halucinator_raw_')
 
     pub_endpoint  = el.findtext('pub-endpoint', default=pub)
     pull_endpoint = el.findtext('pull-endpoint', default=pull)
@@ -62,6 +67,8 @@ class Halucinator:
     self.subscriber.add_update_handler(self.handle_msgbus_update)
 
     self.ts = 0
+
+    self.paused = False
 
 
   def start(self: Halucinator):
@@ -81,11 +88,14 @@ class Halucinator:
 
   def run(self: Halucinator):
     while True:
-      self.server.tick()
-      sleep(self.server.tick_delay/1000)
+      if self.paused:
+        time.sleep(0.001)
+        continue
 
+      self.server.tick()
       self.ts += 1 # must be an integer
-      time.sleep(0.1)
+      time.sleep(self.server.tick_delay/1000)
+
 
   def pin_update(self, pin, val):
     tag = self.gpio_msg_prefix + str(pin)
@@ -104,6 +114,15 @@ class Halucinator:
           pin = int(tag.split(self.gpio_msg_prefix)[1])
           pin_set = point['value']
           self.io_server.send_msg('Peripheral.GPIO.ext_pin_change', {'id': pin, 'value': pin_set})
+        elif self.pause_msg == tag:
+          self.paused = True
+          self.io_server.send_msg(self.halucinator_pause_msg, {})
+        elif self.resume_msg == tag:
+          self.paused = False
+          self.io_server.send_msg(self.halucinator_resume_msg, {})
+        elif tag.startswith(self.raw_halucinator_msg_prefix):
+          hal_msg = tag.split(self.raw_halucinator_msg_prefix)[1]
+          self.io_server.send_msg(tag, point['value'])
 
 
 def main():

@@ -15,6 +15,9 @@ services:
     command: /root/halucinator/openplc_demo/openplc_run.sh
     volumes:
       - halucinator-ipc-tmp:/tmp
+    # we need stdio and tty for interacting with halucinator debugger for demo
+    stdin_open: true
+    tty: true
 
 volumes:
   halucinator-ipc-tmp:
