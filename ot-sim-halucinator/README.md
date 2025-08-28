@@ -18,6 +18,8 @@ Use docker-compose: `docker-compose up` from this directory. To tear down (inclu
 
 ## Demo details
 
+- the program running is a simple PLC motor controller
+- we can mess with the internal program state of the motor by reading and writing to memory directly using the halucinator debugger integration
 - navigate to http://localhost:8000/ui for HMI
 - halucinator communicates with the ot-sim halucinator plugin via IPC (unix domain sockets in `/tmp`)
 - can paused program and attach to halucinator with: `docker attach otsimhalucinator_halucinator_openplc_1`
